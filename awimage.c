@@ -160,8 +160,7 @@ dir_fopen(const char *dir, const char *path, const char *mode)
     char *p;
     int len;
 
-    strcpy(outfn, "./");
-    strcat(outfn, dir);
+    strcpy(outfn, dir);
     len = strlen(outfn);
     if (outfn[len-1] != '/' && path[0] != '/')
         strcat(outfn, "/");
@@ -244,21 +243,21 @@ pack_image(const char *indn, const char *outfn)
     memset(p, 0, 1024 + num_files * 1024);
     header = p;
     memcpy(header->magic, IMAGEWTY_MAGIC, sizeof(header->magic));
-    header->header_version = 0x0100;
-    header->header_size = 0x50; /* should be 0x60 for version == 0x0300 */
+    header->header_version = 0x0300;
+    header->header_size = 0x60; /* should be 0x60 for version == 0x0300 */
     header->ram_base = 0x04D00000;
     header->version = cfg_get_number("version", head);
     header->image_size = 0; /* this will be filled in later on */
-    header->image_header_size = 1024;
-    header->v1.pid = cfg_get_number("pid", head);
-    header->v1.vid = cfg_get_number("vid", head);
-    header->v1.hardware_id = cfg_get_number("hardwareid", head);
-    header->v1.firmware_id = cfg_get_number("firmwareid", head);
-    header->v1.val1 = 1;
-    header->v1.val1024 = 1024;
-    header->v1.num_files = num_files;
-    header->v1.num_files = cfg_count_vars(filelist);
-    header->v1.val1024_2 = 1024;
+    header->v3.image_header_size = 1024;
+    header->v3.pid = cfg_get_number("pid", head);
+    header->v3.vid = cfg_get_number("vid", head);
+    header->v3.hardware_id = cfg_get_number("hardwareid", head);
+    header->v3.firmware_id = cfg_get_number("firmwareid", head);
+    header->v3.val1 = 1;
+    header->v3.val1024 = 1024;
+    header->v3.num_files = num_files;
+    header->v3.num_files = cfg_count_vars(filelist);
+    header->v3.val1024_2 = 1024;
 
     /* Setup file headers */
     {
@@ -269,7 +268,7 @@ pack_image(const char *indn, const char *outfn)
         fheaders = (struct imagewty_file_header*) (p + 1024);
         for(var=filelist->vars; var; var=var->next) {
             variable_t *v, *fn = NULL, *mt = NULL, *st = NULL;
-            uint32_t size;
+            size_t size;
             FILE *fp;
             for (v=var->items; v; v=v->next) {
                 if (v->type != VT_STRING)
@@ -289,9 +288,9 @@ pack_image(const char *indn, const char *outfn)
 
             fheaders->filename_len = IMAGEWTY_FHDR_FILENAME_LEN;
             fheaders->total_header_size = 1024;
-            strcpy((char*)fheaders->v1.filename, fn->str);
-            strcpy((char*)fheaders->maintype, mt->str);
-            strcpy((char*)fheaders->subtype, st->str);
+            strncpy(fheaders->v3.filename, fn->str, sizeof(fheaders->v3.filename));
+            strncpy(fheaders->maintype, mt->str, sizeof(fheaders->maintype));
+            strncpy(fheaders->subtype, st->str, sizeof(fheaders->subtype));
 
             fp = dir_fopen(indn, fn->str, "rb");
             if (fp) {
@@ -329,7 +328,7 @@ pack_image(const char *indn, const char *outfn)
         struct imagewty_file_header *h =
             (struct imagewty_file_header*)(p + i * 1024);
 
-        FILE *fp = dir_fopen(indn, h->v1.filename, "rb");
+        FILE *fp = dir_fopen(indn, h->v3.filename, "rb");
         if (fp != NULL) {
             char buf[512];
             size_t size = 0;
@@ -510,7 +509,7 @@ unpack_image(const char *infn, const char *outdn)
 
 
     /* Check version of header and setup our local state */
-    if (header->header_version == 0x0300) {
+    if (header->header_version == 0x0300 || header->header_version == 0x0403) {
         num_files = header->v3.num_files;
         hardware_id = header->v3.hardware_id;
         firmware_id = header->v3.firmware_id;
@@ -535,7 +534,7 @@ unpack_image(const char *infn, const char *outdn)
         void *next;
 
         filehdr = (struct imagewty_file_header*)(image + 1024 + (i * 1024));
-        if (header->header_version == 0x0300) {
+        if (header->header_version == 0x0300 || header->header_version == 0x0403) {
             stored_length = filehdr->v3.stored_length;
             filename = filehdr->v3.filename;
         } else {
@@ -598,7 +597,7 @@ unpack_image(const char *infn, const char *outdn)
         uint32_t offset;
 
         filehdr = (struct imagewty_file_header*)(image + 1024 + (i * 1024));
-        if (header->header_version == 0x0300) {
+        if (header->header_version == 0x0300 || header->header_version == 0x0403) {
             stored_length = filehdr->v3.stored_length;
             original_length = filehdr->v3.original_length;
             filename = filehdr->v3.filename;
@@ -615,14 +614,14 @@ unpack_image(const char *infn, const char *outdn)
                 filehdr->maintype, filehdr->subtype,
                 original_length, stored_length);
 
-            sprintf(hdrfname, "%.8s_%.16s.hdr", filehdr->maintype, filehdr->subtype);
+            sprintf(hdrfname, "%s.hdr", filename);
             ofp = dir_fopen(outdn, hdrfname, "wb");
             if (ofp) {
                 fwrite(filehdr, filehdr->total_header_size, 1, ofp);
                 fclose(ofp);
             }
 
-            sprintf(contfname, "%.8s_%.16s", filehdr->maintype, filehdr->subtype);
+            sprintf(contfname, "%s", filename);
             ofp = dir_fopen(outdn, contfname, "wb");
             if (ofp) {
                 fwrite(image + offset, original_length, 1, ofp);
@@ -631,7 +630,7 @@ unpack_image(const char *infn, const char *outdn)
 
             fprintf(lfp, "%s\t%s\r\n", hdrfname, contfname);
 
-            fprintf(cfp, "\t{filename = INPUT_DIR .. \"%s\", maintype = \"%.8s\", subtype = \"%.16s\",},\r\n",
+            fprintf(cfp, "\t{filename = \"%s\", maintype = \"%.8s\", subtype = \"%.16s\",},\r\n",
                 contfname,
                 filehdr->maintype, filehdr->subtype);
         } else if (flag_compat_output == OUTPUT_IMGREPACKER) {
@@ -643,7 +642,7 @@ unpack_image(const char *infn, const char *outdn)
                 fclose(ofp);
             }
 
-            fprintf(cfp, "\t{filename = INPUT_DIR .. \"%s\", maintype = \"%.8s\", subtype = \"%.16s\",},\r\n",
+            fprintf(cfp, "\t{filename = \"%s\", maintype = \"%.8s\", subtype = \"%.16s\",},\r\n",
                 filename[0] == '/' ? filename+1 : filename,
                 filehdr->maintype, filehdr->subtype);
         }
@@ -747,7 +746,7 @@ main(int argc, char **argv)
     if (S_ISDIR(statbuf.st_mode)) {
         /* We're packing, lets see if we have to generate the output image filename ourselfs */
         if (out == NULL) {
-            int len = strlen(in);
+            size_t len = strlen(in);
             strcpy(outfn, in);
             if (in[len-1] == '/') len--;
             if (len > 5 && strncmp(in+len-5, ".dump", 5) == 0)

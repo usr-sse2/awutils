@@ -16,9 +16,9 @@ struct imagewty_header {
 	uint32_t ram_base;
 	uint32_t version;		/* format version (IMAGEWTY_VERSION) */
         uint32_t image_size;            /* total size of image file (rounded up to 256 bytes?) */
-        uint32_t image_header_size;     /* image header size (including padding) */
 	union {
 		struct {
+            uint32_t image_header_size;     /* image header size (including padding) */
 			uint32_t pid;			/* USB peripheral ID (from image.cfg) */
 			uint32_t vid;			/* USB vendor ID (from image.cfg) */
 			uint32_t hardware_id;		/* Hardware ID (from image.cfg) */
@@ -35,6 +35,7 @@ struct imagewty_header {
 		} v1;
 		struct {
 			uint32_t unknown;
+            uint32_t image_header_size;     /* image header size (including padding) */
 			uint32_t pid;			/* USB peripheral ID (from image.cfg) */
 			uint32_t vid;			/* USB vendor ID (from image.cfg) */
 			uint32_t hardware_id;		/* Hardware ID (from image.cfg) */
@@ -59,8 +60,8 @@ struct imagewty_header {
 struct imagewty_file_header {
 	uint32_t filename_len;
 	uint32_t total_header_size;
-	const char maintype[IMAGEWTY_FHDR_MAINTYPE_LEN];
-	const char subtype[IMAGEWTY_FHDR_SUBTYPE_LEN];
+	char maintype[IMAGEWTY_FHDR_MAINTYPE_LEN];
+	char subtype[IMAGEWTY_FHDR_SUBTYPE_LEN];
 	union {
 		struct {
 			uint32_t unknown_3;
@@ -68,11 +69,11 @@ struct imagewty_file_header {
 			uint32_t original_length;
 			uint32_t offset;
 			uint32_t unknown;
-			const char filename[IMAGEWTY_FHDR_FILENAME_LEN];
+			char filename[IMAGEWTY_FHDR_FILENAME_LEN];
 		} v1;
 		struct {
 			uint32_t unknown_0;
-			const char filename[IMAGEWTY_FHDR_FILENAME_LEN];
+			char filename[IMAGEWTY_FHDR_FILENAME_LEN];
 			uint32_t stored_length;
 			uint32_t pad1;
 			uint32_t original_length;
