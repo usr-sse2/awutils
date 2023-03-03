@@ -2,6 +2,9 @@ awflash
 awimage
 log2bin
 parsecfg
+add_checksum
+.DS_Store
+*.xcuserdatad
 *.img
 *.dump
 *.cfg
