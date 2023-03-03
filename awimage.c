@@ -302,14 +302,19 @@ pack_image(const char *indn, const char *outfn)
                 continue;
             }
 
-            fheaders->v1.offset = offset;
-            fheaders->v1.stored_length =
-            fheaders->v1.original_length = size;
-            if (fheaders->v1.stored_length & 0x1FF) {
-                fheaders->v1.stored_length &= ~0x1FF;
-                fheaders->v1.stored_length += 0x200;
+            fheaders->v3.offset = offset;
+            fheaders->v3.stored_length =
+            fheaders->v3.original_length = (uint32_t)size;
+            if (fheaders->v3.stored_length & 0xF) {
+                fheaders->v3.stored_length &= ~0xF;
+                fheaders->v3.stored_length += 0x10;
             }
-            offset += fheaders->v1.stored_length;
+            uint32_t real_stored_length = (uint32_t)size;
+            if (real_stored_length & 0x3FF) {
+                real_stored_length &= ~0x3FF;
+                real_stored_length += 0x400;
+            }
+            offset += real_stored_length;
             fheaders = (struct imagewty_file_header*) ((uint8_t*)fheaders + 1024);
         }
 
@@ -330,20 +335,27 @@ pack_image(const char *indn, const char *outfn)
 
         FILE *fp = dir_fopen(indn, h->v3.filename, "rb");
         if (fp != NULL) {
-            char buf[512];
+            char buf[2048];
             size_t size = 0;
             while(!feof(fp)) {
-                size_t bytesread = fread(buf, 1, 512, fp);
+                bzero(buf, sizeof(buf));
+                size_t bytesread = fread(buf, 1, sizeof(buf), fp);
                 if (bytesread) {
-                    if (bytesread & 0x1ff)
-                        bytesread = (bytesread & ~0x1ff) + 0x200;
-
+                    if (bytesread & 0xF)
+                        bytesread = (bytesread & ~0xF) + 0x10;
+                    
                     if (flag_encryption_enabled)
                         rc6_encrypt_inplace(buf, bytesread, &filecontent_ctx);
                     fwrite(buf, 1, bytesread, ofp);
                 }
                 size += bytesread;
             }
+            memset(buf, 0xCD, sizeof(buf));
+            size_t full_size = h->v3.original_length;
+            if (full_size & 0x3FF) {
+                full_size = (full_size & ~0x3FF) + 0x400;
+            }
+            fwrite(buf, 1, full_size - size, ofp);
             fclose(fp);
         }
     }
