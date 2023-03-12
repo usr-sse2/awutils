@@ -1,7 +1,10 @@
 
+EXTRACFLAGS=
 ifeq ($(shell uname -s),Darwin)
-EXTRACFLAGS:=-I/opt/local/include -L/opt/local/lib -fsanitize=address
+EXTRACFLAGS:+=-I/opt/local/include -L/opt/local/lib
 endif
+
+EXTRACFLAGS+=-g -fsanitize=address
 
 all:		log2bin$(EXE) awimage$(EXE) awflash$(EXE) add_checksum$(EXE)
 
