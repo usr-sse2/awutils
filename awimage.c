@@ -203,7 +203,6 @@ pack_image(const char *indn, const char *outfn)
 
     /* file is there, now try to load it */
     head = cfg_load(cfp);
-    fclose(cfp);
     if (head == NULL) {
         fprintf(stderr, "Error: failed to parse %s/%s!\n", indn, "image.cfg");
         return -EINVAL;
